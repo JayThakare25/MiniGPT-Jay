@@ -16,9 +16,10 @@ max_iters = 1000
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # -------- LOAD DATASET --------
-# Download tiny Shakespeare dataset
-url = "https://raw.githubusercontent.com/karpathy/char-rnn/master/data/tinyshakespeare/input.txt"
-text = requests.get(url).text
+# -------- LOAD TECHNICAL DATA --------
+with open("updated_tech_data.txt", "r", encoding="utf-8") as f:
+    text = f.read()
+
 
 # Create dataset object
 data = TextDataset(text, block_size)
