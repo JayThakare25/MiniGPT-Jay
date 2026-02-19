@@ -28,9 +28,11 @@ model = MiniGPTModel(
     block_size
 ).to(device)
 
-# IMPORTANT:
-# For now we use fresh weights (later we will load saved weights)
+
+# -------- LOAD TRAINED WEIGHTS --------
+model.load_state_dict(torch.load("minigpt_weights.pt", map_location=device))
 model.eval()
+
 
 # -------- GENERATION FUNCTION --------
 def generate(model, idx, max_new_tokens):
