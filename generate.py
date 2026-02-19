@@ -62,10 +62,13 @@ def generate(model, idx, max_new_tokens):
 # Start token (random character)
 # -------- INTERACTIVE GENERATION --------
 while True:
-    prompt = input("\nEnter prompt (or 'exit'): ")
+    user_input = input("\nAsk anything (or 'exit'): ")
 
-    if prompt.lower() == "exit":
+    if user_input.lower() == "exit":
         break
+
+    # Automatically format as USER message
+    prompt = f"USER: {user_input}\nASSISTANT:"
 
     # Encode prompt into tokens
     idx = torch.tensor([[data.stoi.get(c,0) for c in prompt]], dtype=torch.long).to(device)
