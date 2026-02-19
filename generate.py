@@ -42,9 +42,17 @@ def generate(model, idx, max_new_tokens):
 
         logits = model(idx_cond)
         logits = logits[:, -1, :]
+        
+        # Temperature controls randomness
+        temperature = 0.8
+        logits = logits / temperature
+
+        # Top-k sampling removes unlikely characters
+        top_k = 40
+        v, _ = torch.topk(logits, top_k)
+        logits[logits < v[:, [-1]]] = -float('Inf')
 
         probs = F.softmax(logits, dim=-1)
-
         next_token = torch.multinomial(probs, num_samples=1)
 
         idx = torch.cat((idx, next_token), dim=1)
