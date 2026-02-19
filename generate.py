@@ -60,10 +60,18 @@ def generate(model, idx, max_new_tokens):
     return idx
 
 # Start token (random character)
-start = torch.zeros((1,1), dtype=torch.long).to(device)
+# -------- INTERACTIVE GENERATION --------
+while True:
+    prompt = input("\nEnter prompt (or 'exit'): ")
 
-out = generate(model, start, max_new_tokens=200)[0].tolist()
+    if prompt.lower() == "exit":
+        break
 
-# Convert numbers back to characters
-decoded = ''.join([data.itos[i] for i in out])
-print(decoded)
+    # Encode prompt into tokens
+    idx = torch.tensor([[data.stoi.get(c,0) for c in prompt]], dtype=torch.long).to(device)
+
+    out = generate(model, idx, max_new_tokens=200)[0].tolist()
+
+    decoded = ''.join([data.itos[i] for i in out])
+    print("\nGenerated:\n", decoded)
+
