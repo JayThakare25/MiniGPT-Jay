@@ -13,8 +13,8 @@ n_layers = 6
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # Load dataset (needed for tokenizer)
-url = "https://raw.githubusercontent.com/karpathy/char-rnn/master/data/tinyshakespeare/input.txt"
-text = requests.get(url).text
+with open("updated_tech_data.txt", "r", encoding="utf-8") as f:
+    text = f.read()
 data = TextDataset(text, block_size)
 
 vocab_size = len(data.stoi)
