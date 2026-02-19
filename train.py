@@ -67,3 +67,8 @@ for step in range(max_iters):
     # Print training progress
     if step % 20 == 0:
         print(f"step {step} | loss {loss.item():.4f}")
+
+
+# -------- SAVE TRAINED MODEL --------
+torch.save(model.state_dict(), "minigpt_weights.pt")
+print("Model saved successfully!")
