@@ -34,6 +34,12 @@ model = MiniGPTModel(
     n_layers,
     block_size
 ).to(device)
+import os
+
+# -------- RESUME TRAINING IF WEIGHTS EXIST --------
+if os.path.exists("minigpt_weights.pt"):
+    print("Loading existing weights...")
+    model.load_state_dict(torch.load("minigpt_weights.pt", map_location=device))
 
 # Optimizer updates model weights during training
 optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
