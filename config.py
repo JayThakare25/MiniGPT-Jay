@@ -1,12 +1,14 @@
 # MiniGPT config file
 import torch
 
-block_size = 256 # Longer context for code
-batch_size = 64
-n_embd = 512 # Wider embeddings for more concepts
-n_heads = 8
-n_layers = 8 # Deeper model for better reasoning
+block_size = 256
+batch_size = 32 # Lowered batch size for Free Tier GPU stability
+n_embd = 384     # Balanced for T4 GPU memory
+n_heads = 6
+n_layers = 8    # Solid depth that trains quickly on Free Tier
 dropout = 0.2
-learning_rate = 3e-4
+learning_rate = 6e-4
 max_iters = 5000
+warmup_iters = 500
+min_lr = 6e-5
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
