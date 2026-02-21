@@ -115,8 +115,10 @@ for step in range(max_iters):
     optimizer.step()
 
     # Print training progress
-    if step % 20 == 0:
-        print(f"step {step} | loss {loss.item():.4f}")
+# -------- AUTO SAVE CHECKPOINT --------
+    if step % 200 == 0 and step > 0:
+        torch.save(model.state_dict(), "minigpt_weights.pt")
+        print("Checkpoint saved at step", step)
 
 
 # -------- SAVE TRAINED MODEL --------
