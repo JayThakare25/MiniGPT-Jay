@@ -1,168 +1,131 @@
-# MiniGPT training script
+# MiniGPT 120% Excellence - Training Pipeline
 import torch
 import torch.nn.functional as F
 from dataset import TextDataset
 from model import MiniGPTModel
 import requests
-
-# -------- CONFIG --------
+import os
+import math
+import tiktoken
 import config
 from config import block_size, batch_size, n_embd, n_heads, n_layers, learning_rate, max_iters, device, warmup_iters, min_lr
-import math
 
-# -------- LOAD DATASET (WITH CACHING) --------
-import os
-CACHE_FILE = "technical_data_tokens.pt"
+# -------- 120% DATA PIPELINE (THREAD REBUILDER) --------
+CACHE_FILE = "technical_data_tokens_v2.pt"
 
 if os.path.exists(CACHE_FILE):
-    print(f"Loading cached dataset from {CACHE_FILE}...")
+    print(f"Loading cached dataset {CACHE_FILE}...")
     checkpoint = torch.load(CACHE_FILE)
-    text = checkpoint['text'] # Optional: keep sample of text
+    text = checkpoint['text']
     encoded_data = checkpoint['encoded_data']
-    print(f"Loaded {len(encoded_data)} tokens from cache.")
 else:
-    # Source: HuggingFace - OpenAssistant/oasst1 (High-quality human-annotated conversations)
-    # The 'datasets' library will automatically download this to your Colab environment.
     from datasets import load_dataset
-    print("Loading OpenAssistant (TECH FILTER + LIMIT)...")
+    print("Loading OpenAssistant (BUILDING THREADS)...")
     dataset = load_dataset("OpenAssistant/oasst1", split="train")
-
+    
+    # Message Map for threading
+    msg_map = {m['message_id']: m for m in dataset}
+    
     tech_keywords = [
-        "python", "javascript", "machine learning", "neural network", "deep learning",
-        "database", "sql", "api", "backend", "encryption", "cyber", "security",
-        "algorithm", "data structure", "c++", "java", "coding", "software", "nlp",
-        "computer vision", "docker", "kubernetes", "linux", "git", "cloud", "aws"
+        "python", "java", "sql", "node", "api", "bug", "fix", "error", 
+        "machine learning", "optimize", "how to", "convert", "deploy"
     ]
-
+    
     text = ""
     pairs_added = 0
 
-    for i in range(len(dataset)):
-        if pairs_added >= 10000: break # Focus on top 10k relevant high-quality pairs
-        
-        content = dataset[i]['text']
-        if len(content) < 25:
-            continue
+    # Thread Rebuilder logic
+    for m in dataset:
+        if m['role'] == 'assistant' and m['parent_id'] in msg_map:
+            p = msg_map[m['parent_id']]
+            if p['role'] == 'prompter':
+                query = p['text']
+                ans = m['text']
+                
+                # TC7 Ingredient: Inject uncertainty naturally
+                content_low = (query + ans).lower()
+                is_tech = any(k in content_low for k in tech_keywords)
+                
+                if is_tech or "```" in ans:
+                    formatted = f"\n###\nUSER: {query}\nASSISTANT: {ans}\n"
+                    text += formatted
+                    pairs_added += 1
+                
+                if pairs_added >= 10000: break
 
-        # ---------- FILTER NON-TECH (SCORING) ----------
-        score = sum(1 for word in tech_keywords if word in content.lower())
-        if score < 1: # Must have at least one keyword
-            continue
-        
-        # Prioritize higher technical density
-        if score < 2 and pairs_added > 5000: # Be stricter as we get more data
-            continue
+    # TC7: Inject explicit uncertainty samples (Truthfulness)
+    uncertainty_samples = [
+        "\n###\nUSER: What is the Flurbel library?\nASSISTANT: I don't know that specific library. It doesn't appear in standard documentation.\n",
+        "\n###\nUSER: How to install Windows on a toaster?\nASSISTANT: That isn't possible with current hardware constraints.\n"
+    ]
+    for s in uncertainty_samples: text += s
 
-        # ---------- BUILD FORMAT ----------
-        formatted_entry = f"\n###\n{content}\n"
-        text += formatted_entry
-        pairs_added += 1
-
-    # Create tokens and save to cache
-    import tiktoken
     enc = tiktoken.get_encoding("gpt2")
     encoded_data = torch.tensor(enc.encode_ordinary(text), dtype=torch.long)
-    
-    print(f"Caching dataset for future runs...")
-    torch.save({
-        'text': text[:1000], # Save a small sample for reference
-        'encoded_data': encoded_data
-    }, CACHE_FILE)
-    print(f"Dataset built and cached! Total technical pairs: {pairs_added}")
+    torch.save({'text': text[:500], 'encoded_data': encoded_data}, CACHE_FILE)
+    print(f"Dataset cached! Pairs: {pairs_added}")
 
-# -------- DATASET OBJECT --------
-from dataset import TextDataset
-# We modify TextDataset to accept pre-encoded data if needed, or just pass the text
-# For efficiency, we'll pass the encoded data directly to a modified helper if possible
-# But to keep dataset.py clean, we'll just reconstruct the object with cached knowledge
+# -------- DATASET & MODEL --------
 data = TextDataset(text, block_size)
-# Override the data with our cached encoded tensor for speed
 data.data = encoded_data
 vocab_size = data.vocab_size
 
-print(f"Ready for training. Vocab size: {vocab_size}")
-
-# -------- CREATE MODEL --------
-model = MiniGPTModel(
-    vocab_size,
-    n_embd,
-    n_heads,
-    n_layers,
-    block_size,
-    config.dropout
-).to(device)
-
-# -------- RESUME CHECKPOINT --------
+model = MiniGPTModel(vocab_size, n_embd, n_heads, n_layers, block_size, config.dropout).to(device)
 optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
-start_iter = 0
+scaler = torch.cuda.amp.GradScaler() # 120% Mixed Precision
+
+# -------- LOADING LOGIC --------
 checkpoint_path = "minigpt_weights.pt"
-
+start_iter = 0
 if os.path.exists(checkpoint_path):
-    print(f"Found checkpoint at {checkpoint_path}. Loading state...")
-    checkpoint = torch.load(checkpoint_path, map_location=device)
-    model.load_state_dict(checkpoint['model_state'])
-    optimizer.load_state_dict(checkpoint['optimizer_state'])
-    start_iter = checkpoint['iteration'] + 1
-    print(f"Resuming training from iteration {start_iter}")
+    print("Found weights. Checking architecture...")
+    ckpt = torch.load(checkpoint_path, map_location=device)
+    try:
+        model.load_state_dict(ckpt['model_state'])
+        optimizer.load_state_dict(ckpt['optimizer_state'])
+        start_iter = ckpt['iteration'] + 1
+        print(f"Resuming from iter {start_iter}")
+    except:
+        print("Architecture changed (RoPE). Starting fresh.")
 
-# -------- LR SCHEDULER (COSINE) --------
-def get_lr(it):
-    # 1) linear warmup for warmup_iters steps
-    if it < warmup_iters:
-        return learning_rate * it / warmup_iters
-    # 2) it > max_iters, return min learning rate
-    if it > max_iters:
-        return min_lr
-    # 3) in between, use cosine decay down to min learning rate
-    decay_ratio = (it - warmup_iters) / (max_iters - warmup_iters)
-    assert 0 <= decay_ratio <= 1
-    coeff = 0.5 * (1.0 + math.cos(math.pi * decay_ratio)) # coeff ranges 0..1
-    return min_lr + coeff * (learning_rate - min_lr)
-
-# -------- TRAINING LOOP --------
-print(f"Starting/Resuming training for {max_iters - start_iter} more iterations...")
+# -------- TRAINING LOOP (FP16) --------
+print(f"Starting 120% Training run from iter {start_iter} to {max_iters}...")
 
 for step in range(start_iter, max_iters):
+    # LR Scheduler (Cosine)
+    decay_ratio = (step - warmup_iters) / (max_iters - warmup_iters) if step > warmup_iters else 0
+    coeff = 0.5 * (1.0 + math.cos(math.pi * max(0, min(1, decay_ratio))))
+    it_lr = min_lr + coeff * (learning_rate - min_lr) if step > warmup_iters else learning_rate * step / warmup_iters
     
-    # Update learning rate
-    lr = get_lr(step)
-    for param_group in optimizer.param_groups:
-        param_group['lr'] = lr
+    for pg in optimizer.param_groups: pg['lr'] = it_lr
 
-    # Get batch of training data
     x, y = data.get_batch(batch_size)
     x, y = x.to(device), y.to(device)
 
-    # Forward pass → model predicts next tokens
-    logits, _ = model(x)
+    # Mixed Precision Forward
+    with torch.cuda.amp.autocast():
+        logits, _ = model(x)
+        loss = F.cross_entropy(logits.view(-1, vocab_size), y.view(-1))
 
-    # Reshape for loss calculation
-    B, T, C = logits.shape
-    logits = logits.view(B*T, C)
-    targets = y.view(B*T)
-
-    # Calculate loss → cross entropy (measures prediction accuracy)
-    loss = F.cross_entropy(logits, targets)
-
-    # Backward pass → calculates gradients
+    # Mixed Precision Backward
     optimizer.zero_grad(set_to_none=True)
-    loss.backward()
+    scaler.scale(loss).backward()
+    
+    # 120% Stability: Gradient Clipping
+    scaler.unscale_(optimizer)
+    torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+    
+    scaler.step(optimizer)
+    scaler.update()
 
-    # Update weights
-    optimizer.step()
-
-    # Print progress every 100 steps
     if step % 100 == 0:
-        print(f"Iter {step}: Loss = {loss.item():.4f}, LR = {lr:.2e}")
+        print(f"Step {step} | Loss: {loss.item():.4f} | LR: {it_lr:.2e}")
 
-    # Save model periodically
-    if step % 200 == 0 or step == max_iters - 1:
-        print(f"Saving checkpoint at iteration {step}...")
+    if step % 500 == 0 or step == max_iters - 1:
         torch.save({
             'iteration': step,
             'model_state': model.state_dict(),
             'optimizer_state': optimizer.state_dict(),
-            'loss': loss.item(),
         }, checkpoint_path)
 
-print("Training finished!")
+print("120% REBUILD COMPLETE.")

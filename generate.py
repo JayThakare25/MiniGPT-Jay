@@ -1,104 +1,83 @@
-# MiniGPT generation script
+# MiniGPT 120% Excellence - Generation Script
 import torch
 import torch.nn.functional as F
 from model import MiniGPTModel
 from dataset import TextDataset
 import requests
-
-# -------- CONFIG --------
+import os
+import tiktoken
 import config
 from config import block_size, n_embd, n_heads, n_layers, device
 
-# Tokenizer loader
-import tiktoken
-
+# Tokenizer setup
 enc = tiktoken.get_encoding("gpt2")
 encode = lambda s: enc.encode(s)
 decode = lambda l: enc.decode(l)
 vocab_size = enc.n_vocab
 
-print("Tokenizer loaded. Vocab size:", vocab_size)
-
-# Create model
-model = MiniGPTModel(
-    vocab_size,
-    n_embd,
-    n_heads,
-    n_layers,
-    block_size,
-    config.dropout
-).to(device)
-
+# -------- CREATE MODEL --------
+model = MiniGPTModel(vocab_size, n_embd, n_heads, n_layers, block_size, config.dropout).to(device)
 
 # -------- LOAD TRAINED WEIGHTS --------
 if os.path.exists("minigpt_weights.pt"):
     checkpoint = torch.load("minigpt_weights.pt", map_location=device)
-    # Check if it's the new dictionary format or old state_dict
     if isinstance(checkpoint, dict) and 'model_state' in checkpoint:
         model.load_state_dict(checkpoint['model_state'])
     else:
-         model.load_state_dict(checkpoint) # Compatibility for old weights
+        model.load_state_dict(checkpoint)
+    print("Weights loaded successfully!")
 else:
     print("Warning: No weights found. Model will be untrained.")
 
 model.eval()
 
-
-# -------- GENERATION FUNCTION (WITH KV CACHE) --------
-def generate(model, idx, max_new_tokens):
-    past_key_values = None
-    
-    # Pre-calculate logits for the initial prompt
-    logits, past_key_values = model(idx, use_cache=True)
-    logits = logits[:, -1, :]
+@torch.no_grad()
+def generate(model, idx, max_new_tokens, temperature=1.0, top_p=0.9):
+    model.eval()
+    past_kvs = None
     
     for _ in range(max_new_tokens):
-        # Temperature controls randomness
-        temperature = 0.7
-        logits = logits / temperature
-
-        # Top-p (Nucleus) sampling
-        p = 0.9
-        sorted_logits, sorted_indices = torch.sort(logits, descending=True)
+        # We only need the last token if we have a cache
+        idx_cond = idx if past_kvs is None else idx[:, -1:]
+        
+        # Forward pass with KV Cache support (RoPE handles positions)
+        logits, past_kvs = model(idx_cond, past_kvs=past_kvs, use_cache=True)
+        
+        # Focus on the last token and apply temperature
+        logits = logits[:, -1, :] / temperature
+        
+        # Top-P (Nucleus) Sampling
+        sorted_logits, sorted_indices = torch.sort(logits, descending=True, dim=-1)
         cumulative_probs = torch.cumsum(F.softmax(sorted_logits, dim=-1), dim=-1)
-
-        sorted_indices_to_remove = cumulative_probs > p
+        
+        sorted_indices_to_remove = cumulative_probs > top_p
         sorted_indices_to_remove[..., 1:] = sorted_indices_to_remove[..., :-1].clone()
         sorted_indices_to_remove[..., 0] = 0
-
-        indices_to_remove = sorted_indices[sorted_indices_to_remove]
-        logits[0, indices_to_remove] = -float('Inf')
-
-        probs = F.softmax(logits, dim=-1)
-        next_token = torch.multinomial(probs, num_samples=1)
-
-        # Only pass the LAST token into the model if we have a cache
-        idx = torch.cat((idx, next_token), dim=1)
         
-        # Efficient forward pass using KV Cache
-        logits, past_key_values = model(next_token, past_key_values=past_key_values, use_cache=True)
-        logits = logits[:, -1, :]
+        indices_to_remove = sorted_indices_to_remove.scatter(1, sorted_indices, sorted_indices_to_remove)
+        logits = logits.masked_fill(indices_to_remove, float('-inf'))
+        
+        # Sample from the filtered distribution
+        probs = F.softmax(logits, dim=-1)
+        idx_next = torch.multinomial(probs, num_samples=1)
+        
+        if idx_next.item() == encode("\n###")[0]: break # EOT signal
+        
+        idx = torch.cat((idx, idx_next), dim=1)
+        yield decode([idx_next.item()])
 
-    return idx
+# -------- CHAT INTERFACE --------
+print("\n=== MiniGPT 120% Technical Assistant (RoPE + FP16) ===")
+print("Type 'exit' to quit.")
 
-# Start token (random character)
-# -------- INTERACTIVE GENERATION --------
 while True:
-    user_input = input("\nAsk anything (or 'exit'): ")
-
-    if user_input.lower() == "exit":
-        break
-
-    # Format prompt to match training data
+    user_input = input("\nUSER: ")
+    if user_input.lower() == 'exit': break
+    
     prompt = f"\n###\nUSER: {user_input}\nASSISTANT:"
-
-    # Encode prompt into tokens
     idx = torch.tensor([encode(prompt)], dtype=torch.long).to(device)
     
-    # Actually call the model to generate
-    out = generate(model, idx, max_new_tokens=150)
-    
-    decoded = decode(out[0].tolist())
-    # Strip the prompt from the output for a cleaner UI
-    response = decoded.split("ASSISTANT:")[-1].strip()
-    print("\nGenerated:\n", response)
+    print("ASSISTANT:", end=" ", flush=True)
+    for token in generate(model, idx, max_new_tokens=512, temperature=0.7, top_p=0.9):
+        print(token, end="", flush=True)
+    print()
