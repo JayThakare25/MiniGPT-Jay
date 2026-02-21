@@ -66,8 +66,21 @@ print("Total characters:", len(text))
 
 # Create dataset object
 data = TextDataset(text, block_size)
-
 vocab_size = len(data.stoi)
+
+# -------- SAVE TOKENIZER (NEW) --------
+import json
+
+tokenizer_data = {
+    "chars": data.chars,
+    "stoi": data.stoi,
+    "itos": data.itos
+}
+
+with open("tokenizer.json", "w") as f:
+    json.dump(tokenizer_data, f)
+
+print("Tokenizer saved!")
 
 # -------- CREATE MODEL --------
 model = MiniGPTModel(

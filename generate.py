@@ -12,65 +12,24 @@ n_heads = 6
 n_layers = 6
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-# Load dataset (needed for tokenizer)
-from datasets import load_dataset
+# Tokenizer loader
+import json
 
-print("Loading OpenAssistant (TECH FILTER + LIMIT)...")
+print("Loading tokenizer...")
 
-ds = load_dataset("OpenAssistant/oasst1", split="train")
+with open("tokenizer.json", "r") as f:
+    tokenizer_data = json.load(f)
 
-text = ""
-prev_user = None
+chars = tokenizer_data["chars"]
+stoi = tokenizer_data["stoi"]
+itos = {int(k):v for k,v in tokenizer_data["itos"].items()}
 
-# ---------- LIMIT DATA SIZE ----------
-MAX_PAIRS = 40000      # safe for Colab GPU
-pairs_added = 0
+vocab_size = len(chars)
 
-# ---------- TECH KEYWORDS ----------
-tech_keywords = [
-    "machine", "model", "data", "algorithm", "training",
-    "neural", "network", "python", "code", "ai", "learning"
-]
+encode = lambda s: [stoi.get(c,0) for c in s]
+decode = lambda l: ''.join([itos[i] for i in l])
 
-for item in ds:
-
-    if pairs_added >= MAX_PAIRS:
-        break
-
-    role = item["role"]
-    content = item["text"].replace("\n"," ").strip()
-
-    if len(content) < 25:
-        continue
-
-    # ---------- FILTER NON-TECH ----------
-    if not any(word in content.lower() for word in tech_keywords):
-        continue
-
-    # ---------- BUILD FORMAT ----------
-    if role == "prompter":
-        prev_user = content
-
-    elif role == "assistant" and prev_user:
-        text += f"\n###\nUSER: {prev_user}\nASSISTANT: {content}\n"
-        prev_user = None
-        pairs_added += 1
-
-    print("Dataset built!")
-    print("Total technical pairs:", pairs_added)
-    print("Total characters:", len(text)) 
-
-    # -------- BUILD TOKENIZER (REQUIRED) --------
-    chars = sorted(list(set(text)))
-    vocab_size = len(chars)
-
-    stoi = { ch:i for i,ch in enumerate(chars) }
-    itos = { i:ch for i,ch in enumerate(chars) }
-
-    encode = lambda s: [stoi[c] for c in s]
-    decode = lambda l: ''.join([itos[i] for i in l])
-
-    print("Vocab size:", vocab_size)
+print("Tokenizer loaded. Vocab size:", vocab_size)
 
 # Create model
 model = MiniGPTModel(
@@ -124,10 +83,7 @@ while True:
     prompt = f"USER: {user_input}\nASSISTANT:"
 
     # Encode prompt into tokens
-    idx = torch.tensor([[data.stoi.get(c,0) for c in prompt]], dtype=torch.long).to(device)
-
-    out = generate(model, idx, max_new_tokens=200)[0].tolist()
-
-    decoded = ''.join([data.itos[i] for i in out])
+    idx = torch.tensor([[stoi.get(c,0) for c in prompt]], dtype=torch.long).to(device)
+    decoded = ''.join([itos[i] for i in out])
     print("\nGenerated:\n", decoded)
 
