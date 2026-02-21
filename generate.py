@@ -56,6 +56,22 @@ for item in ds:
         prev_user = None
         pairs_added += 1
 
+    print("Dataset built!")
+    print("Total technical pairs:", pairs_added)
+    print("Total characters:", len(text)) 
+
+    # -------- BUILD TOKENIZER (REQUIRED) --------
+    chars = sorted(list(set(text)))
+    vocab_size = len(chars)
+
+    stoi = { ch:i for i,ch in enumerate(chars) }
+    itos = { i:ch for i,ch in enumerate(chars) }
+
+    encode = lambda s: [stoi[c] for c in s]
+    decode = lambda l: ''.join([itos[i] for i in l])
+
+    print("Vocab size:", vocab_size)
+
 # Create model
 model = MiniGPTModel(
     vocab_size,
