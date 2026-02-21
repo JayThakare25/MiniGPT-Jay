@@ -25,7 +25,7 @@ else:
     # The 'datasets' library will automatically download this to your Colab environment.
     from datasets import load_dataset
     print("Loading OpenAssistant (TECH FILTER + LIMIT)...")
-    dataset = load_dataset("OpenAssistant/oasst1", split="train", trust_remote_code=True)
+    dataset = load_dataset("OpenAssistant/oasst1", split="train")
 
     tech_keywords = [
         "python", "javascript", "machine learning", "neural network", "deep learning",
@@ -85,6 +85,8 @@ print(f"Ready for training. Vocab size: {vocab_size}")
 # -------- CREATE MODEL --------
 model = MiniGPTModel(
     vocab_size,
+    n_embd,
+    n_heads,
     n_layers,
     block_size,
     config.dropout
