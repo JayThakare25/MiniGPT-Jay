@@ -13,12 +13,49 @@ n_layers = 6
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # Load dataset (needed for tokenizer)
-with open("updated_tech_data.txt", "r", encoding="utf-8") as f:
-    text = f.read()
-data = TextDataset(text, block_size)
+from datasets import load_dataset
 
-vocab_size = len(data.stoi)
+print("Loading OpenAssistant (TECH FILTER + LIMIT)...")
 
+ds = load_dataset("OpenAssistant/oasst1", split="train")
+
+text = ""
+prev_user = None
+
+# ---------- LIMIT DATA SIZE ----------
+MAX_PAIRS = 40000      # safe for Colab GPU
+pairs_added = 0
+
+# ---------- TECH KEYWORDS ----------
+tech_keywords = [
+    "machine", "model", "data", "algorithm", "training",
+    "neural", "network", "python", "code", "ai", "learning"
+]
+
+for item in ds:
+
+    if pairs_added >= MAX_PAIRS:
+        break
+
+    role = item["role"]
+    content = item["text"].replace("\n"," ").strip()
+
+    if len(content) < 25:
+        continue
+
+    # ---------- FILTER NON-TECH ----------
+    if not any(word in content.lower() for word in tech_keywords):
+        continue
+
+    # ---------- BUILD FORMAT ----------
+    if role == "prompter":
+        prev_user = content
+
+    elif role == "assistant" and prev_user:
+        text += f"\n###\nUSER: {prev_user}\nASSISTANT: {content}\n"
+        prev_user = None
+        pairs_added += 1
+        
 # Create model
 model = MiniGPTModel(
     vocab_size,

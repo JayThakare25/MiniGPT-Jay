@@ -17,9 +17,52 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # -------- LOAD DATASET --------
 # -------- LOAD TECHNICAL DATA --------
-with open("updated_tech_data.txt", "r", encoding="utf-8") as f:
-    text = f.read()
+from datasets import load_dataset
 
+print("Loading OpenAssistant (TECH FILTER + LIMIT)...")
+
+ds = load_dataset("OpenAssistant/oasst1", split="train")
+
+text = ""
+prev_user = None
+
+# ---------- LIMIT DATA SIZE ----------
+MAX_PAIRS = 40000      # safe for Colab GPU
+pairs_added = 0
+
+# ---------- TECH KEYWORDS ----------
+tech_keywords = [
+    "machine", "model", "data", "algorithm", "training",
+    "neural", "network", "python", "code", "ai", "learning"
+]
+
+for item in ds:
+
+    if pairs_added >= MAX_PAIRS:
+        break
+
+    role = item["role"]
+    content = item["text"].replace("\n"," ").strip()
+
+    if len(content) < 25:
+        continue
+
+    # ---------- FILTER NON-TECH ----------
+    if not any(word in content.lower() for word in tech_keywords):
+        continue
+
+    # ---------- BUILD FORMAT ----------
+    if role == "prompter":
+        prev_user = content
+
+    elif role == "assistant" and prev_user:
+        text += f"\n###\nUSER: {prev_user}\nASSISTANT: {content}\n"
+        prev_user = None
+        pairs_added += 1
+
+print("Dataset built!")
+print("Total technical pairs:", pairs_added)
+print("Total characters:", len(text))
 
 # Create dataset object
 data = TextDataset(text, block_size)
