@@ -6,14 +6,8 @@ from model import MiniGPTModel
 import requests
 
 # -------- CONFIG --------
-block_size = 128
-batch_size = 64
-n_embd = 384
-n_heads = 6
-n_layers = 6
-learning_rate = 3e-4
-max_iters = 4000
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
+import config
+from config import block_size, batch_size, n_embd, n_heads, n_layers, learning_rate, max_iters, device
 
 # -------- LOAD DATASET --------
 # -------- LOAD TECHNICAL DATA --------

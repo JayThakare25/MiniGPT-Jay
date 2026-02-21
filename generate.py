@@ -6,11 +6,8 @@ from dataset import TextDataset
 import requests
 
 # -------- CONFIG --------
-block_size = 128
-n_embd = 384
-n_heads = 6
-n_layers = 6
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
+import config
+from config import block_size, n_embd, n_heads, n_layers, device
 
 # Tokenizer loader
 import json
@@ -84,6 +81,10 @@ while True:
 
     # Encode prompt into tokens
     idx = torch.tensor([[stoi.get(c,0) for c in prompt]], dtype=torch.long).to(device)
-    decoded = ''.join([itos[i] for i in out])
+    
+    # Actually call the model to generate
+    out = generate(model, idx, max_new_tokens=100)
+    
+    decoded = decode(out[0].tolist())
     print("\nGenerated:\n", decoded)
 

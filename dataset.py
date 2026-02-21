@@ -7,8 +7,8 @@ class TextDataset:
         self.text = text
 
         # Simple character-level tokenizer
-        chars = sorted(list(set(text)))
-        self.stoi = {ch:i for i,ch in enumerate(chars)}
+        self.chars = sorted(list(set(text)))
+        self.stoi = {ch:i for i,ch in enumerate(self.chars)}
         self.itos = {i:ch for ch,i in self.stoi.items()}
 
         self.data = torch.tensor([self.stoi[c] for c in text], dtype=torch.long)
