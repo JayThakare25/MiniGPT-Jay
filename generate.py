@@ -55,7 +55,7 @@ for item in ds:
         text += f"\n###\nUSER: {prev_user}\nASSISTANT: {content}\n"
         prev_user = None
         pairs_added += 1
-        
+
 # Create model
 model = MiniGPTModel(
     vocab_size,
@@ -81,11 +81,11 @@ def generate(model, idx, max_new_tokens):
         logits = logits[:, -1, :]
         
         # Temperature controls randomness
-        temperature = 0.8
+        temperature = 0.6
         logits = logits / temperature
 
         # Top-k sampling removes unlikely characters
-        top_k = 40
+        top_k = 20
         v, _ = torch.topk(logits, top_k)
         logits[logits < v[:, [-1]]] = -float('Inf')
 
