@@ -1,1 +1,5 @@
 # MiniGPT requirements file
+torch
+datasets
+requests
+tiktoken

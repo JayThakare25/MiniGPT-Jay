@@ -1,1 +1,81 @@
 # MiniGPT generation script
+import torch
+import torch.nn.functional as F
+from model import MiniGPTModel
+from dataset import TextDataset
+import requests
+
+# -------- CONFIG --------
+import config
+from config import block_size, n_embd, n_heads, n_layers, device
+
+# Tokenizer loader
+import tiktoken
+
+enc = tiktoken.get_encoding("gpt2")
+encode = lambda s: enc.encode(s)
+decode = lambda l: enc.decode(l)
+vocab_size = enc.n_vocab
+
+print("Tokenizer loaded. Vocab size:", vocab_size)
+
+# Create model
+model = MiniGPTModel(
+    vocab_size,
+    n_embd,
+    n_heads,
+    n_layers,
+    block_size
+).to(device)
+
+
+# -------- LOAD TRAINED WEIGHTS --------
+model.load_state_dict(torch.load("minigpt_weights.pt", map_location=device))
+model.eval()
+
+
+# -------- GENERATION FUNCTION --------
+def generate(model, idx, max_new_tokens):
+    for _ in range(max_new_tokens):
+
+        idx_cond = idx[:, -block_size:]
+
+        logits = model(idx_cond)
+        logits = logits[:, -1, :]
+        
+        # Temperature controls randomness
+        temperature = 0.6
+        logits = logits / temperature
+
+        # Top-k sampling removes unlikely characters
+        top_k = 20
+        v, _ = torch.topk(logits, top_k)
+        logits[logits < v[:, [-1]]] = -float('Inf')
+
+        probs = F.softmax(logits, dim=-1)
+        next_token = torch.multinomial(probs, num_samples=1)
+
+        idx = torch.cat((idx, next_token), dim=1)
+
+    return idx
+
+# Start token (random character)
+# -------- INTERACTIVE GENERATION --------
+while True:
+    user_input = input("\nAsk anything (or 'exit'): ")
+
+    if user_input.lower() == "exit":
+        break
+
+    # Format prompt to match training data
+    prompt = f"\n###\nUSER: {user_input}\nASSISTANT:"
+
+    # Encode prompt into tokens
+    idx = torch.tensor([encode(prompt)], dtype=torch.long).to(device)
+    
+    # Actually call the model to generate
+    out = generate(model, idx, max_new_tokens=100)
+    
+    decoded = decode(out[0].tolist())
+    print("\nGenerated:\n", decoded)
+
