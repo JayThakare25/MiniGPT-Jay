@@ -12,6 +12,7 @@ class Head(nn.Module):
         self.key = nn.Linear(n_embd, head_size, bias=False)
         self.query = nn.Linear(n_embd, head_size, bias=False)
         self.value = nn.Linear(n_embd, head_size, bias=False)
+        self.dropout = nn.Dropout(0.2) # Regularization
 
         # Mask prevents looking at future tokens
         self.register_buffer('tril', torch.tril(torch.ones(block_size, block_size)))
@@ -29,6 +30,7 @@ class Head(nn.Module):
         wei = wei.masked_fill(self.tril[:T, :T] == 0, float('-inf'))
 
         wei = F.softmax(wei, dim=-1)
+        wei = self.dropout(wei)
 
         v = self.value(x)    # actual information passed forward
         out = wei @ v
@@ -48,11 +50,12 @@ class MultiHeadAttention(nn.Module):
 
         # Final projection layer
         self.proj = nn.Linear(n_embd, n_embd)
+        self.dropout = nn.Dropout(0.2)
 
     def forward(self, x):
         # Concatenate outputs from all heads
         out = torch.cat([h(x) for h in self.heads], dim=-1)
-        out = self.proj(out)
+        out = self.dropout(self.proj(out))
         return out
 
 
@@ -66,6 +69,7 @@ class FeedForward(nn.Module):
             nn.Linear(n_embd, 4 * n_embd),
             nn.ReLU(),
             nn.Linear(4 * n_embd, n_embd),
+            nn.Dropout(0.2),
         )
 
     def forward(self, x):
@@ -113,6 +117,17 @@ class MiniGPTModel(nn.Module):
 
         # Final output layer predicts next token
         self.lm_head = nn.Linear(n_embd, vocab_size)
+
+        # Better weight initialization
+        self.apply(self._init_weights)
+
+    def _init_weights(self, module):
+        if isinstance(module, nn.Linear):
+            torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
+            if module.bias is not None:
+                torch.nn.init.zeros_(module.bias)
+        elif isinstance(module, nn.Embedding):
+            torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
 
     def forward(self, idx):
         B, T = idx.shape

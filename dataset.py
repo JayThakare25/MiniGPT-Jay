@@ -1,17 +1,15 @@
 # MiniGPT dataset file
 import torch
+import tiktoken
 
 class TextDataset:
     def __init__(self, text, block_size):
         self.block_size = block_size
-        self.text = text
-
-        # Simple character-level tokenizer
-        self.chars = sorted(list(set(text)))
-        self.stoi = {ch:i for i,ch in enumerate(self.chars)}
-        self.itos = {i:ch for ch,i in self.stoi.items()}
-
-        self.data = torch.tensor([self.stoi[c] for c in text], dtype=torch.long)
+        self.enc = tiktoken.get_encoding("gpt2")
+        
+        # Use BPE instead of character-level
+        self.data = torch.tensor(self.enc.encode_ordinary(text), dtype=torch.long)
+        self.vocab_size = self.enc.n_vocab
 
     def get_batch(self, batch_size):
         ix = torch.randint(len(self.data)-self.block_size, (batch_size,))

@@ -10,21 +10,12 @@ import config
 from config import block_size, n_embd, n_heads, n_layers, device
 
 # Tokenizer loader
-import json
+import tiktoken
 
-print("Loading tokenizer...")
-
-with open("tokenizer.json", "r") as f:
-    tokenizer_data = json.load(f)
-
-chars = tokenizer_data["chars"]
-stoi = tokenizer_data["stoi"]
-itos = {int(k):v for k,v in tokenizer_data["itos"].items()}
-
-vocab_size = len(chars)
-
-encode = lambda s: [stoi.get(c,0) for c in s]
-decode = lambda l: ''.join([itos[i] for i in l])
+enc = tiktoken.get_encoding("gpt2")
+encode = lambda s: enc.encode(s)
+decode = lambda l: enc.decode(l)
+vocab_size = enc.n_vocab
 
 print("Tokenizer loaded. Vocab size:", vocab_size)
 
@@ -76,11 +67,11 @@ while True:
     if user_input.lower() == "exit":
         break
 
-    # Automatically format as USER message
-    prompt = f"USER: {user_input}\nASSISTANT:"
+    # Format prompt to match training data
+    prompt = f"\n###\nUSER: {user_input}\nASSISTANT:"
 
     # Encode prompt into tokens
-    idx = torch.tensor([[stoi.get(c,0) for c in prompt]], dtype=torch.long).to(device)
+    idx = torch.tensor([encode(prompt)], dtype=torch.long).to(device)
     
     # Actually call the model to generate
     out = generate(model, idx, max_new_tokens=100)

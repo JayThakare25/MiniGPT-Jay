@@ -27,7 +27,10 @@ pairs_added = 0
 # ---------- TECH KEYWORDS ----------
 tech_keywords = [
     "machine", "model", "data", "algorithm", "training",
-    "neural", "network", "python", "code", "ai", "learning"
+    "neural", "network", "python", "code", "ai", "learning",
+    "cyber", "security", "encryption", "hacker", "firewall",
+    "c++", "java", "coding", "software", "development",
+    "deep learning", "nlp", "vision", "dataset", "optimization"
 ]
 
 for item in ds:
@@ -60,21 +63,9 @@ print("Total characters:", len(text))
 
 # Create dataset object
 data = TextDataset(text, block_size)
-vocab_size = len(data.stoi)
+vocab_size = data.vocab_size
 
-# -------- SAVE TOKENIZER (NEW) --------
-import json
-
-tokenizer_data = {
-    "chars": data.chars,
-    "stoi": data.stoi,
-    "itos": data.itos
-}
-
-with open("tokenizer.json", "w") as f:
-    json.dump(tokenizer_data, f)
-
-print("Tokenizer saved!")
+print(f"Dataset built! Vocab size: {vocab_size}")
 
 # -------- CREATE MODEL --------
 model = MiniGPTModel(
