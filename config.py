@@ -22,12 +22,12 @@ class MiniGPTConfig:
     beta1: float = 0.9
     beta2: float = 0.95
     grad_clip: float = 1.0      # Clip gradients at this value
-    target_loss: float = 0.40    # Mastery target loss
+    target_loss: float = 0.35    # Safe "sweet spot" to prevent overfitting
     early_stop_threshold: int = 5 # Number of consecutive logs below target_loss to stop
     
     # Checkpointing
 
-    checkpoint_interval: int = 700    # Frequent backup with ckpt_N.pt
+    checkpoint_interval: int = 1200   # Backup every 1,200 iters as requested
     latest_interval: int = 100        # Overwrite latest.pt for resilience
 
     checkpoint_dir: str = "checkpoints"

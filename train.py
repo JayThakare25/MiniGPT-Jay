@@ -151,14 +151,14 @@ def train():
                 }
                 
                 if is_latest_time:
-                    print(f"Updating latest.pt at iteration {i}...")
+                    print(f"\n[Latest Sync] Updating latest.pt at iteration {i}...")
                     torch.save(checkpoint, checkpoint_path)
                     print(f"latest.pt successfully updated.")
                 
                 if is_backup_time:
-                    print(f"Saving backup checkpoint ckpt_{i}.pt at iteration {i}...")
+                    print(f"\n[Backup] Saving master checkpoint ckpt_{i}.pt...")
                     torch.save(checkpoint, os.path.join(config.checkpoint_dir, f"ckpt_{i}.pt"))
-                    print(f"Backup checkpoint ckpt_{i}.pt saved successfully.")
+                    print(f"Checkpoint ckpt_{i}.pt saved successfully to {config.checkpoint_dir}.")
 
                 
                 # Trigger background sync to Google Drive
