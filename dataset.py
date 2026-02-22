@@ -14,12 +14,15 @@ class TechnicalDataset(IterableDataset):
         self.tokenizer.model_max_length = 1e9 
         self.tokenizer.pad_token = self.tokenizer.eos_token
 
-        # 1. Technical/Code Dataset (70% weight)
+        # 1. Technical/Code Dataset (40% weight)
         self.code_ds = load_dataset("sahil2801/CodeAlpaca-20k", split=split, streaming=True)
         
         # 2. Conversational/Reasoning Dataset (30% weight)
-        # Using a subset of OpenOrca for general technical theory and chat
         self.chat_ds = load_dataset("Open-Orca/OpenOrca", split=split, streaming=True)
+
+        # 3. High-Complexity Technical Reasoning (30% weight)
+        # WizardLM Evol-Instruct provides deeper 'why' and technical depth
+        self.wizard_ds = load_dataset("WizardLM/WizardLM_evol_instruct_70k", split="train", streaming=True)
         
         self.block_size = config.block_size
         self.tokenizer_eos_id = self.tokenizer.eos_token_id
@@ -46,16 +49,21 @@ class TechnicalDataset(IterableDataset):
         buffer = []
         code_iter = iter(self.code_ds)
         chat_iter = iter(self.chat_ds)
+        wiz_iter = iter(self.wizard_ds)
         
         while True:
             try:
-                # Interleave: 70% Code, 30% Chat
-                if random.random() < 0.7:
+                # 40% Code, 30% Chat, 30% High-Depth Theory
+                r = random.random()
+                if r < 0.4:
                     try: item = next(code_iter); is_chat = False
                     except StopIteration: code_iter = iter(self.code_ds); item = next(code_iter); is_chat = False
-                else:
+                elif r < 0.7:
                     try: item = next(chat_iter); is_chat = True
                     except StopIteration: chat_iter = iter(self.chat_ds); item = next(chat_iter); is_chat = True
+                else:
+                    try: item = next(wiz_iter); is_chat = True
+                    except StopIteration: wiz_iter = iter(self.wizard_ds); item = next(wiz_iter); is_chat = True
                 
                 tokens = self.format_item(item, is_chat)
                 buffer.extend(tokens)

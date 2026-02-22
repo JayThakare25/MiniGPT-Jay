@@ -16,8 +16,8 @@ class MiniGPTConfig:
     batch_size: int = 4         # Micro-batch size (reduced for T4 VRAM)
     gradient_accumulation_steps: int = 8 # Effective batch size = 4 * 8 = 32
 
-    learning_rate: float = 6e-4
-    max_iters: int = 10000       # Increased for deeper learning
+    learning_rate: float = 3e-4
+    max_iters: int = 30000       # Optimized for a ~8 hour overnight run
     weight_decay: float = 1e-1
     beta1: float = 0.9
     beta2: float = 0.95
