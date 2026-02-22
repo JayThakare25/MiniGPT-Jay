@@ -27,6 +27,8 @@ class MiniGPTConfig:
     checkpoint_interval: int = 100
 
     checkpoint_dir: str = "checkpoints"
+    drive_checkpoint_dir: str = "/content/drive/MyDrive/MiniGPT-Jay/checkpoints" # Optional drive sync
+
     
     # Hardware
     device: str = "cuda" if torch.cuda.is_available() else "cpu"

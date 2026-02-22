@@ -2,10 +2,29 @@ import os
 import time
 import math
 import torch
+import shutil
+import threading
 from torch.amp import GradScaler, autocast
 from config import MiniGPTConfig
 from model import MiniGPT
 from dataset import get_dataloader
+
+def async_sync_to_drive(src_dir, dst_dir):
+    """ Copies the checkpoints to drive in the background. """
+    def run_sync():
+        try:
+            if not os.path.exists(dst_dir):
+                os.makedirs(dst_dir, exist_ok=True)
+            # Sync all files in background
+            for filename in os.listdir(src_dir):
+                if filename.endswith(".pt"):
+                    shutil.copy2(os.path.join(src_dir, filename), os.path.join(dst_dir, filename))
+            # print(f"\n[Drive Sync] Background upload to {dst_dir} complete.")
+        except Exception as e:
+            print(f"\n[Drive Sync Error] {e}")
+
+    thread = threading.Thread(target=run_sync)
+    thread.start()
 
 def train():
     config = MiniGPTConfig()
@@ -28,12 +47,18 @@ def train():
     start_iter = 0
     checkpoint_path = os.path.join(config.checkpoint_dir, "latest.pt")
     
+    # Check if we should resume from Drive first (if local doesn't exist)
+    if not os.path.exists(checkpoint_path) and os.path.exists(config.drive_checkpoint_dir):
+        drive_latest = os.path.join(config.drive_checkpoint_dir, "latest.pt")
+        if os.path.exists(drive_latest):
+            print(f"Restoring latest checkpoint from Drive to local...")
+            shutil.copy2(drive_latest, checkpoint_path)
+
     # Resume logic
     if os.path.exists(checkpoint_path):
         print(f"Resuming from checkpoint: {checkpoint_path}")
         checkpoint = torch.load(checkpoint_path, map_location=config.device, weights_only=False)
         model.load_state_dict(checkpoint['model_state_dict'])
-
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         start_iter = checkpoint['iteration']
         if 'scaler_state_dict' in checkpoint and checkpoint['scaler_state_dict'] is not None:
@@ -45,18 +70,14 @@ def train():
         warmup_iters = 200
         lr_decay_iters = config.max_iters
         min_lr = config.learning_rate / 10
-        
-        if it < warmup_iters:
-            return config.learning_rate * it / warmup_iters
-        if it > lr_decay_iters:
-            return min_lr
+        if it < warmup_iters: return config.learning_rate * it / warmup_iters
+        if it > lr_decay_iters: return min_lr
         decay_ratio = (it - warmup_iters) / (lr_decay_iters - warmup_iters)
         coeff = 0.5 * (1.0 + math.cos(math.pi * decay_ratio))
         return min_lr + coeff * (config.learning_rate - min_lr)
 
     model.train()
     t0 = time.time()
-    
     data_iter = iter(dataloader)
     
     for i in range(start_iter, config.max_iters):
@@ -67,40 +88,32 @@ def train():
         optimizer.zero_grad(set_to_none=True)
         accum_loss = 0.0
         
-        for micro_step in range(config.gradient_accumulation_steps):
-            try:
-                x, y = next(data_iter)
+        for _ in range(config.gradient_accumulation_steps):
+            try: x, y = next(data_iter)
             except StopIteration:
                 data_iter = iter(dataloader)
                 x, y = next(data_iter)
-                
             x, y = x.to(config.device), y.to(config.device)
-            
             with autocast('cuda', enabled=(config.dtype == "float16")):
                 logits, loss = model(x, y)
                 loss = loss / config.gradient_accumulation_steps
-            
             accum_loss += loss.item()
             scaler.scale(loss).backward()
             
         if config.grad_clip != 0.0:
             scaler.unscale_(optimizer)
             torch.nn.utils.clip_grad_norm_(model.parameters(), config.grad_clip)
-            
         scaler.step(optimizer)
         scaler.update()
         
         # Logging
         if i % 10 == 0:
-            t1 = time.time()
-            dt = t1 - t0
-            t0 = t1
-            # Note: accum_loss is the total loss for this iteration (averaged over micro-steps)
+            t1 = time.time(); dt = t1 - t0; t0 = t1
             print(f"iter {i}: loss {accum_loss:.4f}, lr {lr:.2e}, time {dt*1000:.2f}ms")
             
-        # Checkpointing
+        # Fast Checkpointing (Save locally, then sync to Drive in background)
         if i > 0 and i % config.checkpoint_interval == 0:
-            print(f"Saving checkpoint at iteration {i}...")
+            print(f"Saving checkpoint at iteration {i} (Fast Local Save)...")
             checkpoint = {
                 'iteration': i,
                 'model_state_dict': model.state_dict(),
@@ -110,6 +123,10 @@ def train():
             }
             torch.save(checkpoint, checkpoint_path)
             torch.save(checkpoint, os.path.join(config.checkpoint_dir, f"ckpt_{i}.pt"))
+            
+            # Trigger background sync to Google Drive
+            if os.path.exists("/content/drive"):
+                async_sync_to_drive(config.checkpoint_dir, config.drive_checkpoint_dir)
 
     print("Training complete!")
 
