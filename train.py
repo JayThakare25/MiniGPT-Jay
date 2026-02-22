@@ -41,20 +41,16 @@ def train():
     dataloader = get_dataloader(config)
     
     def get_lr(it):
-        # 1) linear warmup for warmup_iters steps
         warmup_iters = 200
         lr_decay_iters = config.max_iters
         min_lr = config.learning_rate / 10
         
         if it < warmup_iters:
             return config.learning_rate * it / warmup_iters
-        # 2) if it > lr_decay_iters, return min learning rate
         if it > lr_decay_iters:
             return min_lr
-        # 3) in between, use cosine decay down to min learning rate
         decay_ratio = (it - warmup_iters) / (lr_decay_iters - warmup_iters)
-        assert 0 <= decay_ratio <= 1
-        coeff = 0.5 * (1.0 + math.cos(math.pi * decay_ratio)) # coeff ranges 0..1
+        coeff = 0.5 * (1.0 + math.cos(math.pi * decay_ratio))
         return min_lr + coeff * (config.learning_rate - min_lr)
 
     model.train()
@@ -63,26 +59,29 @@ def train():
     data_iter = iter(dataloader)
     
     for i in range(start_iter, config.max_iters):
-        # determine and set the learning rate for this iteration
         lr = get_lr(i)
         for param_group in optimizer.param_groups:
             param_group['lr'] = lr
             
-        try:
-            x, y = next(data_iter)
-        except StopIteration:
-            data_iter = iter(dataloader)
-            x, y = next(data_iter)
-            
-        x, y = x.to(config.device), y.to(config.device)
-        
-        # Mixed precision training
-        with autocast('cuda', enabled=(config.dtype == "float16")):
-            logits, loss = model(x, y)
-            
         optimizer.zero_grad(set_to_none=True)
-        scaler.scale(loss).backward()
+        accum_loss = 0.0
         
+        for micro_step in range(config.gradient_accumulation_steps):
+            try:
+                x, y = next(data_iter)
+            except StopIteration:
+                data_iter = iter(dataloader)
+                x, y = next(data_iter)
+                
+            x, y = x.to(config.device), y.to(config.device)
+            
+            with autocast('cuda', enabled=(config.dtype == "float16")):
+                logits, loss = model(x, y)
+                loss = loss / config.gradient_accumulation_steps
+            
+            accum_loss += loss.item()
+            scaler.scale(loss).backward()
+            
         if config.grad_clip != 0.0:
             scaler.unscale_(optimizer)
             torch.nn.utils.clip_grad_norm_(model.parameters(), config.grad_clip)
@@ -95,7 +94,8 @@ def train():
             t1 = time.time()
             dt = t1 - t0
             t0 = t1
-            print(f"iter {i}: loss {loss.item():.4f}, lr {lr:.2e}, time {dt*1000:.2f}ms")
+            # Note: accum_loss is the total loss for this iteration (averaged over micro-steps)
+            print(f"iter {i}: loss {accum_loss:.4f}, lr {lr:.2e}, time {dt*1000:.2f}ms")
             
         # Checkpointing
         if i > 0 and i % config.checkpoint_interval == 0:

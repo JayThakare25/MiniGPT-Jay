@@ -25,17 +25,14 @@ class TechnicalDataset(IterableDataset):
             tokens = self.tokenizer.encode(text)
             buffer.extend(tokens)
             
-            # Efficient Token Packing: Yield chunks of block_size + 1 (for x and y)
+            # Efficient Token Packing: Yield chunks of block_size + 1
             while len(buffer) >= self.block_size + 1:
                 chunk = buffer[:self.block_size + 1]
-                buffer = buffer[self.block_size:] # Sliding window logic or just buffer = buffer[block_size+1:]
-                # Actually, for standard packing we usually don't overlap
-                # x = chunk[:-1], y = chunk[1:]
-                # Let's do non-overlapping for simplicity and efficiency
                 x = torch.tensor(chunk[:-1], dtype=torch.long)
                 y = torch.tensor(chunk[1:], dtype=torch.long)
                 yield x, y
-                buffer = buffer[self.block_size + 1:]
+                buffer = buffer[self.block_size:] # Consume block_size tokens
+
 
 def get_dataloader(config, split="train"):
     dataset = TechnicalDataset(config, split=split)

@@ -13,7 +13,9 @@ class MiniGPTConfig:
     bias: bool = False          # True: bias in Linears and LayerNorms, like GPT-2. False: a bit better and faster
     
     # Training
-    batch_size: int = 12        # Micro-batch size (adjust based on VRAM)
+    batch_size: int = 4         # Micro-batch size (reduced for T4 VRAM)
+    gradient_accumulation_steps: int = 8 # Effective batch size = 4 * 8 = 32
+
     learning_rate: float = 6e-4
     max_iters: int = 5000       # Total training steps
     weight_decay: float = 1e-1
