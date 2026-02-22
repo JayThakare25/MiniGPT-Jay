@@ -44,5 +44,5 @@ def get_dataloader(config, split="train"):
         dataset, 
         batch_size=config.batch_size, 
         pin_memory=True,
-        num_workers=2
+        num_workers=1
     )

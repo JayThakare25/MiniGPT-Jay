@@ -65,7 +65,7 @@ def train():
     for i in range(start_iter, config.max_iters):
         # determine and set the learning rate for this iteration
         lr = get_lr(i)
-        for param_group in optimizer.param_group:
+        for param_group in optimizer.param_groups:
             param_group['lr'] = lr
             
         try:
