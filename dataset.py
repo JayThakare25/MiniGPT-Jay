@@ -1,5 +1,6 @@
 import os
 import torch
+import random
 from torch.utils.data import IterableDataset, DataLoader
 from datasets import load_dataset
 from transformers import GPT2Tokenizer
@@ -10,35 +11,68 @@ class TechnicalDataset(IterableDataset):
         super().__init__()
         self.config = config
         self.tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
-        self.tokenizer.model_max_length = 1e9 # Silence warning as we handle packing manually
+        self.tokenizer.model_max_length = 1e9 
         self.tokenizer.pad_token = self.tokenizer.eos_token
 
+        # 1. Technical/Code Dataset (70% weight)
+        self.code_ds = load_dataset("sahil2801/CodeAlpaca-20k", split=split, streaming=True)
         
-        # Using a stable version of Code Alpaca
-        self.dataset = load_dataset("sahil2801/CodeAlpaca-20k", split=split, streaming=True)
+        # 2. Conversational/Reasoning Dataset (30% weight)
+        # Using a subset of OpenOrca for general technical theory and chat
+        self.chat_ds = load_dataset("Open-Orca/OpenOrca", split=split, streaming=True)
+        
         self.block_size = config.block_size
         self.tokenizer_eos_id = self.tokenizer.eos_token_id
 
+    def format_item(self, item, is_chat=False):
+        """ Formats data into a 'Thought -> Code -> Explanation' style. """
+        if is_chat:
+            # From OpenOrca
+            instruction = item.get('instruction', '') or item.get('system_prompt', '')
+            user_query = item.get('question', '')
+            response = item.get('response', '')
+            text = f"Instruction: {instruction}\nThought: Analyzing query: {user_query}\nResponse: {response}{self.tokenizer.eos_token}"
+        else:
+            # From CodeAlpaca
+            instr = item['instruction']
+            inp = item['input']
+            out = item['output']
+            # We inject a 'Thought' and 'Explanation' simulation for training
+            text = f"Instruction: {instr}\nInput: {inp}\nThought: I will solve this by writing efficient code.\nResponse: {out}\nExplanation: This code implements the requested logic by handling the provided inputs.{self.tokenizer.eos_token}"
+        
+        return self.tokenizer.encode(text)
+
     def __iter__(self):
         buffer = []
-        for item in self.dataset:
-            # Format: Instruction + Input + Output
-            text = f"Instruction: {item['instruction']}\nInput: {item['input']}\nResponse: {item['output']}{self.tokenizer.eos_token}"
-            tokens = self.tokenizer.encode(text)
-            buffer.extend(tokens)
-            
-            # Efficient Token Packing: Yield chunks of block_size + 1
-            while len(buffer) >= self.block_size + 1:
-                chunk = buffer[:self.block_size + 1]
-                x = torch.tensor(chunk[:-1], dtype=torch.long)
-                y = torch.tensor(chunk[1:], dtype=torch.long)
-                yield x, y
-                buffer = buffer[self.block_size:] # Consume block_size tokens
-
+        code_iter = iter(self.code_ds)
+        chat_iter = iter(self.chat_ds)
+        
+        while True:
+            try:
+                # Interleave: 70% Code, 30% Chat
+                if random.random() < 0.7:
+                    try: item = next(code_iter); is_chat = False
+                    except StopIteration: code_iter = iter(self.code_ds); item = next(code_iter); is_chat = False
+                else:
+                    try: item = next(chat_iter); is_chat = True
+                    except StopIteration: chat_iter = iter(self.chat_ds); item = next(chat_iter); is_chat = True
+                
+                tokens = self.format_item(item, is_chat)
+                buffer.extend(tokens)
+                
+                # Yield chunks
+                while len(buffer) >= self.block_size + 1:
+                    chunk = buffer[:self.block_size + 1]
+                    x = torch.tensor(chunk[:-1], dtype=torch.long)
+                    y = torch.tensor(chunk[1:], dtype=torch.long)
+                    yield x, y
+                    buffer = buffer[self.block_size:]
+            except Exception as e:
+                print(f"Dataset iteration error: {e}")
+                break
 
 def get_dataloader(config, split="train"):
     dataset = TechnicalDataset(config, split=split)
-    # IterableDataset doesn't support shuffle in DataLoader, usually handled in dataset or via buffer
     return DataLoader(
         dataset, 
         batch_size=config.batch_size, 

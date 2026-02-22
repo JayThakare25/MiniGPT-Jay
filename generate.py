@@ -4,6 +4,7 @@ from transformers import GPT2Tokenizer
 from model import MiniGPT
 from config import MiniGPTConfig
 import os
+import shutil
 
 def top_p_sampling(logits, p=0.9):
     """ Nucleus sampling: sample from the smallest set of tokens whose cumulative probability exceeds p. """
@@ -24,7 +25,8 @@ def top_p_sampling(logits, p=0.9):
 
 def generate_response(prompt, model, tokenizer, config, max_new_tokens=256, temperature=0.7, top_p=0.9, repetition_penalty=1.2):
     model.eval()
-    formatted_prompt = f"Instruction: {prompt}\nInput: \nResponse: "
+    # New Template matching the mixed training data
+    formatted_prompt = f"Instruction: {prompt}\nThought: "
     idx = tokenizer.encode(formatted_prompt, return_tensors="pt").to(config.device)
     
     generated = idx
@@ -65,6 +67,14 @@ def main():
     model = MiniGPT(config).to(config.device)
     checkpoint_path = os.path.join(config.checkpoint_dir, "latest.pt")
     
+    # Check if we should restore from Drive first
+    if not os.path.exists(checkpoint_path) and os.path.exists(config.drive_checkpoint_dir):
+        drive_latest = os.path.join(config.drive_checkpoint_dir, "latest.pt")
+        if os.path.exists(drive_latest):
+            print(f"Restoring latest checkpoint from Drive to local...")
+            os.makedirs(config.checkpoint_dir, exist_ok=True)
+            shutil.copy2(drive_latest, checkpoint_path)
+
     if os.path.exists(checkpoint_path):
         print(f"Loading weights from {checkpoint_path}...")
         checkpoint = torch.load(checkpoint_path, map_location=config.device, weights_only=False)
