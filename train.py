@@ -136,22 +136,31 @@ def train():
                 loss_below_threshold_count = 0
             
         # Fast Checkpointing (Save locally, then sync to Drive in background)
-
-        if i > 0 and i % config.checkpoint_interval == 0:
-            print(f"Saving checkpoint at iteration {i} (Fast Local Save)...")
-            checkpoint = {
-                'iteration': i,
-                'model_state_dict': model.state_dict(),
-                'optimizer_state_dict': optimizer.state_dict(),
-                'scaler_state_dict': scaler.state_dict(),
-                'config': config,
-            }
-            torch.save(checkpoint, checkpoint_path)
-            torch.save(checkpoint, os.path.join(config.checkpoint_dir, f"ckpt_{i}.pt"))
+        if i > 0:
+            is_latest_time = (i % config.latest_interval == 0)
+            is_backup_time = (i % config.checkpoint_interval == 0)
             
-            # Trigger background sync to Google Drive
-            if os.path.exists("/content/drive"):
-                async_sync_to_drive(config.checkpoint_dir, config.drive_checkpoint_dir)
+            if is_latest_time or is_backup_time:
+                checkpoint = {
+                    'iteration': i,
+                    'model_state_dict': model.state_dict(),
+                    'optimizer_state_dict': optimizer.state_dict(),
+                    'scaler_state_dict': scaler.state_dict(),
+                    'config': config,
+                }
+                
+                if is_latest_time:
+                    print(f"Updating latest.pt at iteration {i}...")
+                    torch.save(checkpoint, checkpoint_path)
+                
+                if is_backup_time:
+                    print(f"Saving backup checkpoint ckpt_{i}.pt at iteration {i}...")
+                    torch.save(checkpoint, os.path.join(config.checkpoint_dir, f"ckpt_{i}.pt"))
+                
+                # Trigger background sync to Google Drive
+                if os.path.exists("/content/drive"):
+                    async_sync_to_drive(config.checkpoint_dir, config.drive_checkpoint_dir)
+
 
     print("Training complete!")
 
