@@ -24,7 +24,10 @@ class MiniGPTConfig:
     grad_clip: float = 1.0      # Clip gradients at this value
     
     # Checkpointing
-    checkpoint_interval: int = 100
+    checkpoint_interval: int = 700    # Frequent backup with ckpt_N.pt
+    latest_interval: int = 100        # Overwrite latest.pt for resilience
+
+
 
     checkpoint_dir: str = "checkpoints"
     drive_checkpoint_dir: str = "/content/drive/MyDrive/MiniGPT-Jay/checkpoints" # Optional drive sync
