@@ -17,12 +17,12 @@ class MiniGPTConfig:
     gradient_accumulation_steps: int = 8 # Effective batch size = 4 * 8 = 32
 
     learning_rate: float = 6e-4
-    max_iters: int = 5000       # Total training steps
+    max_iters: int = 10000       # Increased for deeper learning
     weight_decay: float = 1e-1
     beta1: float = 0.9
     beta2: float = 0.95
     grad_clip: float = 1.0      # Clip gradients at this value
-    target_loss: float = 0.55    # Stop training if loss is below this
+    target_loss: float = 0.40    # Mastery target loss
     early_stop_threshold: int = 5 # Number of consecutive logs below target_loss to stop
     
     # Checkpointing

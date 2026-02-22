@@ -22,7 +22,7 @@ def top_p_sampling(logits, p=0.9):
     probs = F.softmax(logits, dim=-1)
     return torch.multinomial(probs, num_samples=1)
 
-def generate_response(prompt, model, tokenizer, config, max_new_tokens=256, temperature=0.7, top_p=0.9):
+def generate_response(prompt, model, tokenizer, config, max_new_tokens=256, temperature=0.7, top_p=0.9, repetition_penalty=1.2):
     model.eval()
     formatted_prompt = f"Instruction: {prompt}\nInput: \nResponse: "
     idx = tokenizer.encode(formatted_prompt, return_tensors="pt").to(config.device)
@@ -35,6 +35,14 @@ def generate_response(prompt, model, tokenizer, config, max_new_tokens=256, temp
         
         logits = logits[:, -1, :] / temperature
         
+        # Apply repetition penalty
+        if repetition_penalty != 1.0:
+            for token_id in set(generated[0].tolist()):
+                if logits[0, token_id] < 0:
+                    logits[0, token_id] *= repetition_penalty
+                else:
+                    logits[0, token_id] /= repetition_penalty
+
         if top_p is not None and top_p < 1.0:
             idx_next = top_p_sampling(logits, p=top_p)
         else:
