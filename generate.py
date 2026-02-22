@@ -59,8 +59,9 @@ def main():
     
     if os.path.exists(checkpoint_path):
         print(f"Loading weights from {checkpoint_path}...")
-        checkpoint = torch.load(checkpoint_path, map_location=config.device)
+        checkpoint = torch.load(checkpoint_path, map_location=config.device, weights_only=False)
         model.load_state_dict(checkpoint['model_state_dict'])
+
     else:
         print("No checkpoint found. Running with randomly initialized weights.")
 
