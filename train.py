@@ -19,8 +19,9 @@ def async_sync_to_drive(src_dir, dst_dir):
             for filename in os.listdir(src_dir):
                 if filename.endswith(".pt"):
                     shutil.copy2(os.path.join(src_dir, filename), os.path.join(dst_dir, filename))
-            # print(f"\n[Drive Sync] Background upload to {dst_dir} complete.")
+            print(f"\n[Drive Sync] Background upload to {dst_dir} complete.")
         except Exception as e:
+
             print(f"\n[Drive Sync Error] {e}")
 
     thread = threading.Thread(target=run_sync)
@@ -152,10 +153,13 @@ def train():
                 if is_latest_time:
                     print(f"Updating latest.pt at iteration {i}...")
                     torch.save(checkpoint, checkpoint_path)
+                    print(f"latest.pt successfully updated.")
                 
                 if is_backup_time:
                     print(f"Saving backup checkpoint ckpt_{i}.pt at iteration {i}...")
                     torch.save(checkpoint, os.path.join(config.checkpoint_dir, f"ckpt_{i}.pt"))
+                    print(f"Backup checkpoint ckpt_{i}.pt saved successfully.")
+
                 
                 # Trigger background sync to Google Drive
                 if os.path.exists("/content/drive"):
