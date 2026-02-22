@@ -10,7 +10,9 @@ class TechnicalDataset(IterableDataset):
         super().__init__()
         self.config = config
         self.tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
+        self.tokenizer.model_max_length = 1e9 # Silence warning as we handle packing manually
         self.tokenizer.pad_token = self.tokenizer.eos_token
+
         
         # Using a stable version of Code Alpaca
         self.dataset = load_dataset("sahil2801/CodeAlpaca-20k", split=split, streaming=True)
