@@ -24,7 +24,8 @@ class MiniGPTConfig:
     grad_clip: float = 1.0      # Clip gradients at this value
     
     # Checkpointing
-    checkpoint_interval: int = 500
+    checkpoint_interval: int = 100
+
     checkpoint_dir: str = "checkpoints"
     
     # Hardware
