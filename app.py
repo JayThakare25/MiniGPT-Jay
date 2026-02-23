@@ -5,6 +5,7 @@ from model import MiniGPT
 from config import MiniGPTConfig
 import os
 import shutil
+from gemini_utils import get_gemini_response
 
 # Page config
 st.set_page_config(page_title="MiniGPT Technical Assistant", page_icon="🤖", layout="wide")
@@ -83,6 +84,14 @@ st.markdown("---")
 
 model, tokenizer, config = load_model()
 
+# Sidebar configuration
+st.sidebar.title("Configuration")
+use_gemini = st.sidebar.toggle("Use Gemini (Free API)", value=False)
+if use_gemini:
+    st.sidebar.info("Using Google Gemini 1.5 Flash.")
+else:
+    st.sidebar.info("Using local MiniGPT model.")
+
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
@@ -98,8 +107,12 @@ for message in st.session_state.messages:
 if prompt := st.chat_input("Ask a technical question..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
     
-    with st.spinner("Thinking and coding..."):
-        full_response = generate_response(prompt, model, tokenizer, config)
-        st.session_state.messages.append({"role": "assistant", "content": full_response})
+    with st.spinner("Thinking..."):
+        if use_gemini:
+            response = get_gemini_response(prompt, config)
+        else:
+            response = generate_response(prompt, model, tokenizer, config)
+        
+        st.session_state.messages.append({"role": "assistant", "content": response})
     
     st.rerun()

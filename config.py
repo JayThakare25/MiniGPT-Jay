@@ -36,3 +36,7 @@ class MiniGPTConfig:
     # Hardware
     device: str = "cuda" if torch.cuda.is_available() else "cpu"
     dtype: str = "bfloat16" if torch.cuda.is_available() and torch.cuda.is_bf16_supported() else "float16"
+
+    # Gemini (Free API) Integration
+    gemini_api_key: str = ""    # Loaded from .env or Colab Secrets
+    gemini_model: str = "gemini-1.5-flash"

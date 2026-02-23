@@ -5,6 +5,7 @@ from model import MiniGPT
 from config import MiniGPTConfig
 import os
 import shutil
+from gemini_utils import get_gemini_response
 
 def top_p_sampling(logits, p=0.9):
     """ Nucleus sampling: sample from the smallest set of tokens whose cumulative probability exceeds p. """
@@ -84,16 +85,24 @@ def main():
         print("No checkpoint found. Running with randomly initialized weights.")
 
     print("-" * 30)
-    print("MiniGPT Technical Assistant CLI (Nucleus Sampling Enabled)")
+    print("MiniGPT Technical Assistant CLI")
+    print("Modes: [1] Local MiniGPT  [2] Google Gemini (Free)")
     print("-" * 30)
     
+    mode = input("Select mode (1 or 2): ")
+    use_gemini = (mode == "2")
+
     while True:
-        prompt = input("\nEnter your technical question (or 'exit'): ")
+        prompt = input(f"\n[{'Gemini' if use_gemini else 'Local'}] Enter question (or 'exit'): ")
         if prompt.lower() == 'exit':
             break
             
         print("\nGenerating response...")
-        response = generate_response(prompt, model, tokenizer, config)
+        if use_gemini:
+            response = get_gemini_response(prompt, config)
+        else:
+            response = generate_response(prompt, model, tokenizer, config)
+            
         print(f"\nAI: {response}")
 
 if __name__ == "__main__":
