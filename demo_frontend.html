@@ -1,0 +1,914 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OptiCode Engine</title>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <!-- Markdown Renderer -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!-- Syntax Highlighting -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+
+    <style>
+        :root {
+            --bg-base: #000000;
+            --bg-surface: #0a0a0a;
+            --bg-input: #111111;
+            --border-color: #222222;
+            --text-main: #ededed;
+            --text-muted: #888888;
+            --accent: #ffffff;
+            --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: var(--font-sans);
+            background-color: var(--bg-base);
+            color: var(--text-main);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            font-size: 14px;
+            position: relative;
+        }
+
+        /* Header */
+        header {
+            background-color: var(--bg-base);
+            border-bottom: 1px solid var(--border-color);
+            padding: 12px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            height: 52px;
+            z-index: 10;
+        }
+
+        .logo {
+            font-weight: 500;
+            color: var(--text-main);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+        }
+
+        .settings-bar {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .settings-bar input[type="text"] {
+            background-color: var(--bg-input);
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            padding: 6px 12px;
+            border-radius: 4px;
+            width: 250px;
+            font-family: var(--font-sans);
+            font-size: 13px;
+        }
+
+        .settings-bar input[type="text"]:focus {
+            outline: none;
+            border-color: #444;
+        }
+
+        /* Chat Container */
+        #chat-container {
+            flex-grow: 1;
+            padding: 24px 0;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            scroll-behavior: smooth;
+        }
+
+        .message-wrapper {
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            padding: 24px;
+            border-bottom: 1px solid transparent;
+        }
+
+        .message-wrapper.ai {
+            background-color: var(--bg-surface);
+            border-bottom: 1px solid var(--border-color);
+            border-top: 1px solid var(--border-color);
+        }
+
+        .message {
+            width: 100%;
+            max-width: 800px;
+            line-height: 1.6;
+        }
+
+        .message-header {
+            font-weight: 500;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        /* Markdown Styling */
+        .message pre {
+            background-color: var(--bg-base);
+            padding: 16px;
+            border-radius: 6px;
+            overflow-x: auto;
+            border: 1px solid var(--border-color);
+            margin: 12px 0;
+            position: relative;
+        }
+
+        .code-actions {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            display: flex;
+            gap: 6px;
+            z-index: 5;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .message pre:hover .code-actions {
+            opacity: 1;
+        }
+
+        .action-btn {
+            background: transparent;
+            border: 1px solid var(--border-color);
+            color: var(--text-muted);
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            cursor: pointer;
+            transition: 0.2s;
+            font-family: var(--font-sans);
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        
+        .action-btn:hover {
+            background: rgba(255,255,255,0.1);
+            color: #fff;
+        }
+
+        .message code {
+            font-family: var(--font-mono);
+            font-size: 13px;
+        }
+
+        .message p code {
+            background-color: var(--bg-base);
+            padding: 2px 4px;
+            border-radius: 3px;
+            border: 1px solid var(--border-color);
+        }
+
+        /* Input Area */
+        .input-container {
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            padding: 24px;
+            background-color: var(--bg-base);
+            transition: opacity 0.3s ease;
+        }
+
+        .input-wrapper {
+            width: 100%;
+            max-width: 800px;
+            background-color: var(--bg-input);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .input-box {
+            display: flex;
+            align-items: flex-start;
+            padding: 12px 16px;
+        }
+
+        .input-box textarea {
+            flex-grow: 1;
+            background: transparent;
+            border: none;
+            color: var(--text-main);
+            font-family: var(--font-sans);
+            font-size: 14px;
+            resize: none;
+            outline: none;
+            line-height: 1.5;
+            min-height: 24px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .input-actions {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 16px 12px 16px;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .toggles {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--text-muted);
+            font-size: 12px;
+            cursor: pointer;
+        }
+
+        .toggles input[type="checkbox"] {
+            accent-color: var(--text-main);
+            cursor: pointer;
+        }
+
+        .buttons {
+            display: flex;
+            gap: 8px;
+        }
+
+        .icon-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 6px;
+            border-radius: 4px;
+            transition: 0.1s;
+        }
+
+        .icon-btn:hover {
+            color: var(--text-main);
+            background-color: var(--border-color);
+        }
+
+        .icon-btn svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        /* Voice Overlay (Jarvis/Siri) */
+        /* Voice Overlay (Jarvis Chatbuddy) */
+        #voice-overlay {
+            position: absolute;
+            top: 52px;
+            left: 0;
+            width: 100%;
+            height: calc(100% - 52px);
+            background: rgba(10, 10, 10, 0.95);
+            backdrop-filter: blur(10px);
+            z-index: 50;
+            display: none;
+            padding: 40px;
+            box-sizing: border-box;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        #voice-overlay.active {
+            display: flex;
+            flex-direction: column;
+            opacity: 1;
+        }
+
+        #close-jarvis {
+            position: absolute;
+            top: 30px;
+            right: 40px;
+            z-index: 1001;
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            font-size: 36px;
+            cursor: pointer;
+            transition: color 0.2s;
+            line-height: 1;
+        }
+
+        #close-jarvis:hover {
+            color: #ffffff;
+        }
+
+        .jarvis-container {
+            display: flex;
+            width: 100%;
+            height: 100%;
+            gap: 40px;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .jarvis-conversation {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            max-width: 600px;
+        }
+
+        .jarvis-code {
+            flex: 1;
+            height: 100%;
+            overflow-y: auto;
+            border-left: 1px solid var(--border-color);
+            padding-left: 40px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .jarvis-code pre {
+            background-color: transparent !important;
+            border: 1px solid var(--border-color) !important;
+            border-radius: 8px;
+            padding: 16px;
+        }
+
+        #jarvis-reply {
+            margin-top: 20px;
+            color: var(--text-muted);
+            font-size: 16px;
+            line-height: 1.6;
+            min-height: 40px;
+        }
+
+        .siri-orb {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 0 20px rgba(255, 255, 255, 0.1), inset 0 0 20px rgba(255, 255, 255, 0.1);
+            animation: orbPulse 2.5s infinite ease-in-out;
+            margin-bottom: 50px;
+            position: relative;
+        }
+
+        .siri-orb::after {
+            content: '';
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: 30px; height: 30px;
+            background: #ffffff;
+            border-radius: 50%;
+            box-shadow: 0 0 30px #ffffff;
+            animation: corePulse 1.2s infinite alternate ease-in-out;
+        }
+
+        @keyframes orbPulse {
+            0% { transform: scale(0.9); border-color: rgba(255,255,255,0.2); }
+            50% { transform: scale(1.15); border-color: rgba(255,255,255,0.6); box-shadow: 0 0 40px rgba(255,255,255,0.2), inset 0 0 40px rgba(255,255,255,0.2); }
+            100% { transform: scale(0.9); border-color: rgba(255,255,255,0.2); }
+        }
+
+        @keyframes corePulse {
+            0% { transform: translate(-50%, -50%) scale(0.8); opacity: 0.7; }
+            100% { transform: translate(-50%, -50%) scale(1.3); opacity: 1; }
+        }
+
+        #voice-text {
+            font-size: 28px;
+            font-weight: 300;
+            text-align: center;
+            max-width: 60%;
+            line-height: 1.4;
+            color: #ffffff;
+            min-height: 80px;
+        }
+
+        .cancel-btn {
+            margin-top: 40px;
+            background: transparent;
+            border: 1px solid var(--border-color);
+            color: var(--text-muted);
+            padding: 10px 24px;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: 0.2s;
+            font-family: var(--font-sans);
+        }
+        
+        .cancel-btn:hover {
+            color: #fff;
+            border-color: #555;
+            background: rgba(255,255,255,0.05);
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: var(--bg-base); }
+        ::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #444; }
+
+        /* Mobile Optimization */
+        @media (max-width: 600px) {
+            header { padding: 10px 15px; }
+            .logo { font-size: 12px; }
+            .logo svg { width: 14px; height: 14px; }
+            .settings-bar input[type="text"] { width: 160px; font-size: 12px; }
+            .message-wrapper { padding: 15px; }
+            .input-container { padding: 10px; }
+            .input-box textarea { font-size: 13px; padding: 8px 0; }
+            .input-box { padding: 8px 12px; }
+            .toggles { font-size: 11px; }
+            #voice-text { font-size: 20px; max-width: 90%; }
+            .jarvis-container {
+                flex-direction: column;
+                justify-content: flex-start;
+                overflow-y: auto;
+            }
+            .jarvis-code {
+                border-left: none;
+                border-top: 1px solid var(--border-color);
+                padding-left: 0;
+                padding-top: 20px;
+                width: 100%;
+                justify-content: flex-start;
+            }
+        }
+
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="logo">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>
+            OptiCode Engine
+        </div>
+        <div class="settings-bar">
+            <input type="text" id="colab-url" placeholder="Backend URL (https://*.gradio.live)">
+        </div>
+    </header>
+
+    <div id="chat-container">
+        <div class="message-wrapper ai">
+            <div class="message">
+                <div class="message-header">System</div>
+                <p>Ready. Configure your backend URL and enter a prompt.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Jarvis Voice Overlay -->
+    <div id="voice-overlay">
+        <button id="close-jarvis" title="Exit Jarvis">&times;</button>
+        <div class="jarvis-container">
+            <!-- Left Side: Conversation -->
+            <div class="jarvis-conversation">
+                <div class="siri-orb" id="jarvis-orb" title="Click to Speak"></div>
+                <div id="voice-text">Click the Orb to Speak</div>
+                <div id="jarvis-reply"></div>
+            </div>
+            <!-- Right Side: Code -->
+            <div class="jarvis-code" id="jarvis-code-container" style="display: none;">
+                <!-- Code injected here -->
+            </div>
+        </div>
+    </div>
+
+    <div class="input-container" id="input-container">
+        <div class="input-wrapper">
+            <div class="input-box">
+                <textarea id="user-input" rows="1" placeholder="Type a prompt..."></textarea>
+            </div>
+            <div class="input-actions">
+                <label class="toggles">
+                    <input type="checkbox" id="exec-toggle">
+                    Execute code blocks
+                </label>
+                <div class="buttons">
+                    <button id="mic-btn" class="icon-btn" title="Voice Input">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
+                    </button>
+                    <button id="send-btn" class="icon-btn" title="Send Message">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { client } from "https://cdn.jsdelivr.net/npm/@gradio/client/dist/index.min.js";
+
+        const chatContainer = document.getElementById('chat-container');
+        const userInput = document.getElementById('user-input');
+        const sendBtn = document.getElementById('send-btn');
+        const micBtn = document.getElementById('mic-btn');
+        const urlInput = document.getElementById('colab-url');
+        const execToggle = document.getElementById('exec-toggle');
+        
+        const voiceOverlay = document.getElementById('voice-overlay');
+        const voiceText = document.getElementById('voice-text');
+        const inputContainer = document.getElementById('input-container');
+        const cancelVoiceBtn = document.getElementById('cancel-voice');
+
+        let chatHistory = [];
+
+        function appendMessage(role, content, id = null) {
+            if (role === 'user') {
+                content = content.replace('[VOICE_MODE] ', '');
+                if (content.startsWith('__EXECUTE_ONLY__\n')) {
+                    content = "▶ **Executing Block:**\n```python\n" + content.replace('__EXECUTE_ONLY__\n', '') + "\n```";
+                }
+            }
+            
+            let wrapper = document.getElementById(id);
+            if (!wrapper) {
+                wrapper = document.createElement('div');
+                wrapper.className = `message-wrapper ${role}`;
+                if (id) wrapper.id = id;
+                
+                const msgDiv = document.createElement('div');
+                msgDiv.className = 'message';
+                
+                const header = document.createElement('div');
+                header.className = 'message-header';
+                header.innerText = role === 'user' ? 'You' : 'Assistant';
+                
+                const contentDiv = document.createElement('div');
+                contentDiv.className = 'content';
+                
+                msgDiv.appendChild(header);
+                msgDiv.appendChild(contentDiv);
+                wrapper.appendChild(msgDiv);
+                chatContainer.appendChild(wrapper);
+            }
+            
+            const contentDiv = wrapper.querySelector('.content');
+            contentDiv.innerHTML = marked.parse(content);
+            
+            contentDiv.querySelectorAll('pre').forEach((preBlock) => {
+                const codeBlock = preBlock.querySelector('code');
+                if (codeBlock) hljs.highlightElement(codeBlock);
+                
+                // Add Actions Container
+                const actionsDiv = document.createElement('div');
+                actionsDiv.className = 'code-actions';
+                
+                // Add Run Button
+                const runBtn = document.createElement('button');
+                runBtn.className = 'action-btn';
+                runBtn.innerHTML = '▶ Run';
+                runBtn.onclick = () => {
+                    const codeText = codeBlock ? codeBlock.innerText : preBlock.innerText;
+                    handleRunBlock(codeText, preBlock);
+                };
+                
+                // Add Download Button
+                const downBtn = document.createElement('button');
+                downBtn.className = 'action-btn';
+                downBtn.innerHTML = '💾 Download';
+                downBtn.onclick = () => {
+                    const codeText = codeBlock ? codeBlock.innerText : preBlock.innerText;
+                    const blob = new Blob([codeText], { type: 'text/plain' });
+                    const a = document.createElement('a');
+                    a.href = URL.createObjectURL(blob);
+                    a.download = 'agent_code.py';
+                    a.click();
+                };
+                
+                actionsDiv.appendChild(runBtn);
+                actionsDiv.appendChild(downBtn);
+                preBlock.appendChild(actionsDiv);
+            });
+            
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+            return wrapper;
+        }
+
+        async function handleRunBlock(codeText, preBlock) {
+            const gradioUrl = urlInput.value.trim();
+            if (!gradioUrl) {
+                alert("Please provide the Backend URL first.");
+                return;
+            }
+
+            let outputDiv = preBlock.nextElementSibling;
+            if (!outputDiv || !outputDiv.classList.contains('exec-output')) {
+                outputDiv = document.createElement('div');
+                outputDiv.className = 'exec-output message ai';
+                outputDiv.style.marginTop = '8px';
+                outputDiv.style.padding = '12px';
+                outputDiv.style.backgroundColor = 'var(--bg-base)';
+                outputDiv.style.borderLeft = '3px solid #ff9800';
+                outputDiv.style.borderRadius = '4px';
+                outputDiv.style.fontFamily = 'var(--font-mono)';
+                outputDiv.style.fontSize = '12px';
+                outputDiv.style.whiteSpace = 'pre-wrap';
+                preBlock.parentNode.insertBefore(outputDiv, preBlock.nextSibling);
+            }
+            outputDiv.innerHTML = "<i>Executing...</i>";
+
+            try {
+                const app = await client(gradioUrl);
+                const stream = app.submit("/chat", ["__EXECUTE_ONLY__\n" + codeText, [], false]);
+                
+                let finalContent = "";
+                for await (const event of stream) {
+                    if (event.type === 'data') {
+                        let data = event.data[0];
+                        if (typeof data === 'string') finalContent = data;
+                        else if (Array.isArray(data)) {
+                            const lastMsg = data[data.length - 1];
+                            if (Array.isArray(lastMsg)) finalContent = lastMsg[1] || "";
+                            else if (lastMsg && typeof lastMsg === 'object') finalContent = lastMsg.content || "";
+                        } else if (typeof data === 'object' && data !== null) {
+                            finalContent = data.value || JSON.stringify(data);
+                        }
+                        
+                        let cleanText = finalContent.replace(/### ⚡ Execution Output:/g, "").replace(/```text/g, "").replace(/```/g, "").trim();
+                        outputDiv.innerText = "⚡ Output:\n" + cleanText;
+                    }
+                }
+            } catch (error) {
+                outputDiv.innerText = `Error: ${error.message}`;
+            }
+        }
+
+        async function handleJarvisSend(text) {
+            const gradioUrl = urlInput.value.trim();
+            if (!gradioUrl) { alert("Please provide the Backend URL."); return; }
+
+            const jarvisReply = document.getElementById('jarvis-reply');
+            const jarvisCode = document.getElementById('jarvis-code-container');
+            
+            jarvisReply.innerHTML = "<i>Thinking...</i>";
+            jarvisCode.style.display = 'none';
+            jarvisCode.innerHTML = "";
+
+            try {
+                const app = await client(gradioUrl);
+                const stream = app.submit("/chat", ["[VOICE_MODE] " + text, chatHistory, false]);
+                
+                let finalContent = "";
+                for await (const event of stream) {
+                    if (event.type === 'data') {
+                        let data = event.data[0];
+                        if (typeof data === 'string') finalContent = data;
+                        else if (Array.isArray(data)) {
+                            const lastMsg = data[data.length - 1];
+                            if (Array.isArray(lastMsg)) finalContent = lastMsg[1] || "";
+                            else if (lastMsg && typeof lastMsg === 'object') finalContent = lastMsg.content || "";
+                        } else if (typeof data === 'object' && data !== null) {
+                            finalContent = data.value || JSON.stringify(data);
+                        }
+                        jarvisReply.innerHTML = finalContent ? marked.parse(finalContent) : "<i>Thinking...</i>";
+                    }
+                }
+                
+                chatHistory.push(["[VOICE_MODE] " + text, finalContent]);
+                appendMessage('user', "[VOICE_MODE] " + text);
+                appendMessage('ai', finalContent);
+                
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = marked.parse(finalContent);
+                
+                const preBlocks = tempDiv.querySelectorAll('pre');
+                if (preBlocks.length > 0) {
+                    jarvisCode.style.display = 'flex';
+                    preBlocks.forEach(pre => {
+                        jarvisCode.appendChild(pre.cloneNode(true));
+                        pre.remove();
+                    });
+                    
+                    jarvisCode.querySelectorAll('pre').forEach((preBlock) => {
+                        const codeBlock = preBlock.querySelector('code');
+                        if (codeBlock) hljs.highlightElement(codeBlock);
+                        
+                        const actionsDiv = document.createElement('div');
+                        actionsDiv.className = 'code-actions';
+                        
+                        const runBtn = document.createElement('button');
+                        runBtn.className = 'action-btn'; runBtn.innerHTML = '▶ Run';
+                        runBtn.onclick = () => { handleRunBlock(codeBlock ? codeBlock.innerText : preBlock.innerText, preBlock); };
+                        
+                        const downBtn = document.createElement('button');
+                        downBtn.className = 'action-btn'; downBtn.innerHTML = '💾 Download';
+                        downBtn.onclick = () => {
+                            const blob = new Blob([codeBlock ? codeBlock.innerText : preBlock.innerText], { type: 'text/plain' });
+                            const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'agent_code.py'; a.click();
+                        };
+                        
+                        actionsDiv.appendChild(runBtn); actionsDiv.appendChild(downBtn);
+                        preBlock.appendChild(actionsDiv);
+                    });
+                }
+                
+                jarvisReply.innerHTML = tempDiv.innerHTML;
+                
+                let spokenText = tempDiv.innerText.trim();
+                if (!spokenText) spokenText = "Here is your requested code.";
+                
+                setTimeout(() => {
+                    window.speechSynthesis.cancel();
+                    const msg = new SpeechSynthesisUtterance(spokenText);
+                    msg.lang = 'en-US'; msg.rate = 1.0;
+                    window.speechSynthesis.speak(msg);
+                }, 50);
+
+            } catch (error) {
+                jarvisReply.innerHTML = `<span style="color:red">Error: ${error.message}</span>`;
+            }
+        }
+
+        async function handleSend() {
+            const text = userInput.value.trim();
+            const gradioUrl = urlInput.value.trim();
+            const shouldExecute = execToggle.checked;
+            
+            if (!text) return;
+            if (!gradioUrl) {
+                alert("Please provide the Backend URL first.");
+                return;
+            }
+
+            appendMessage('user', text);
+            userInput.value = '';
+            userInput.style.height = 'auto';
+            
+            const loadingId = 'msg-' + Date.now();
+            appendMessage('ai', '...', loadingId);
+
+            try {
+                const app = await client(gradioUrl);
+                const stream = app.submit("/chat", [text, chatHistory, shouldExecute]);
+                
+                let finalContent = "";
+                for await (const event of stream) {
+                    if (event.type === 'data') {
+                        let data = event.data[0];
+                        
+                        // Gradio ChatInterface returns the entire history array, not just the string!
+                        if (typeof data === 'string') {
+                            finalContent = data;
+                        } else if (Array.isArray(data)) {
+                            const lastMsg = data[data.length - 1];
+                            if (Array.isArray(lastMsg)) {
+                                finalContent = lastMsg[1] || ""; // tuple format [[user, ai]]
+                            } else if (lastMsg && typeof lastMsg === 'object') {
+                                finalContent = lastMsg.content || ""; // dict format [{role: 'ai', content: '...'}]
+                            }
+                        } else if (typeof data === 'object' && data !== null) {
+                            finalContent = data.value || JSON.stringify(data);
+                        }
+                        
+                        if (finalContent) {
+                            appendMessage('ai', finalContent, loadingId);
+                        }
+                    }
+                }
+                
+                chatHistory.push([text, finalContent]);
+
+                // Voice Output - Talk back naturally!
+                let spokenText = finalContent.replace(/```[\s\S]*?```/g, "").replace(/`/g, "").trim();
+                if (!spokenText) {
+                    spokenText = "Here is your requested code.";
+                }
+                
+                setTimeout(() => {
+                    window.speechSynthesis.cancel();
+                    const msg = new SpeechSynthesisUtterance(spokenText);
+                    msg.lang = 'en-US';
+                    msg.rate = 1.0;
+                    window.speechSynthesis.speak(msg);
+                }, 50);
+
+            } catch (error) {
+                appendMessage('ai', `Connection Error: \`${error.message}\``, loadingId);
+            }
+        }
+
+        sendBtn.addEventListener('click', handleSend);
+        userInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleSend();
+            }
+        });
+
+        // Speech Recognition
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        let recognition = null;
+        let isListening = false;
+
+        if (SpeechRecognition) {
+            recognition = new SpeechRecognition();
+            recognition.continuous = true;
+            recognition.interimResults = true;
+            let silenceTimer = null;
+            let lastTranscript = "";
+
+            recognition.onstart = () => {
+                isListening = true;
+                voiceText.innerText = "Listening... (Tap Orb to Stop)";
+                document.getElementById('jarvis-orb').style.animation = 'pulse 1s infinite alternate';
+                userInput.value = "";
+                lastTranscript = "";
+                clearTimeout(silenceTimer);
+            };
+
+            recognition.onresult = (event) => {
+                let transcript = '';
+                for (let i = 0; i < event.results.length; i++) {
+                    transcript += event.results[i][0].transcript;
+                }
+                voiceText.innerText = transcript;
+                userInput.value = transcript;
+                
+                if (transcript !== lastTranscript) {
+                    lastTranscript = transcript;
+                    clearTimeout(silenceTimer);
+                    silenceTimer = setTimeout(() => {
+                        if (isListening) recognition.stop();
+                    }, 2000); // 2 seconds of definitive silence
+                }
+            };
+
+            recognition.onend = () => {
+                clearTimeout(silenceTimer);
+                isListening = false;
+                document.getElementById('jarvis-orb').style.animation = 'none';
+                
+                if (userInput.value.trim().length > 0) {
+                    handleJarvisSend(userInput.value.trim());
+                    userInput.value = ""; 
+                } else {
+                    voiceText.innerText = "Click the Orb to Speak";
+                }
+            };
+
+            micBtn.addEventListener('click', () => {
+                inputContainer.style.display = 'none';
+                voiceOverlay.classList.add('active');
+                if (!isListening) {
+                    recognition.start();
+                }
+            });
+
+            document.getElementById('jarvis-orb').addEventListener('click', () => {
+                if (!isListening) {
+                    recognition.start();
+                } else {
+                    recognition.stop();
+                }
+            });
+            
+            document.getElementById('close-jarvis').addEventListener('click', () => {
+                if (isListening) recognition.stop();
+                closeVoiceUI();
+            });
+            
+        } else {
+            micBtn.style.display = 'none';
+        }
+
+        function closeVoiceUI() {
+            isListening = false;
+            voiceOverlay.classList.remove('active');
+            inputContainer.style.display = 'flex';
+            userInput.style.height = 'auto';
+            document.getElementById('jarvis-reply').innerHTML = "";
+            document.getElementById('jarvis-code-container').style.display = 'none';
+            document.getElementById('jarvis-code-container').innerHTML = "";
+        }
+
+        // Auto-resize
+        userInput.addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = (this.scrollHeight) + 'px';
+        });
+    </script>
+</body>
+</html>
